@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+}
+
+model User {
+  id              String               @id @default(uuid())
+  email           String               @unique
+  passwordHash    String
+  totpSecret      String?
+  mfaEnabled      Boolean              @default(false)
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  memberships     OrganizationMember[]
+  refreshTokens   RefreshToken[]
+}
+
+model Organization {
+  id          String               @id @default(uuid())
+  name        String
+  legalName   String?
+  gstin       String?
+  address     String?
+  stateCode   String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  members     OrganizationMember[]
+  customers   Customer[]
+  vendors     Vendor[]
+}
+
+model Role {
+  id          String               @id @default(uuid())
+  name        String               @unique // e.g., 'Super Admin', 'Accountant', 'Field Staff'
+  description String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  permissions Permission[]
+  members     OrganizationMember[]
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  action      String   // e.g., 'create:invoice', 'read:reports'
+  description String?
+  roles       Role[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  userId         String
+  organizationId String
+  roleId         String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role         @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, organizationId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// --- MODULE 2: CRM ---
+
+model Customer {
+  id             String         @id @default(uuid())
+  organizationId String
+  name           String
+  gstin          String?
+  email          String?
+  phone          String?
+  isRegistered   Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  addresses      Address[]
+  contacts       ContactPerson[]
+}
+
+model Vendor {
+  id             String         @id @default(uuid())
+  organizationId String
+  name           String
+  gstin          String?
+  email          String?
+  phone          String?
+  isRegistered   Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  addresses      Address[]
+  contacts       ContactPerson[]
+}
+
+model Address {
+  id           String    @id @default(uuid())
+  type         String    // 'BILLING' | 'SHIPPING'
+  street1      String
+  street2      String?
+  city         String
+  state        String
+  stateCode    String    // Vital for GST Place of Supply rules
+  zipCode      String
+  country      String    @default("India")
+
+  customerId   String?
+  vendorId     String?
+
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vendor       Vendor?   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+}
+
+model ContactPerson {
+  id           String    @id @default(uuid())
+  firstName    String
+  lastName     String?
+  email        String?
+  phone        String?
+  isPrimary    Boolean   @default(false)
+
+  customerId   String?
+  vendorId     String?
+
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vendor       Vendor?   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+}
